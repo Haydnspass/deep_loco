@@ -58,7 +58,7 @@ if use_cuda:
 def to_v(d):
     v = Variable(torch.Tensor(d))
     if use_cuda:
-        v = v.cuda(async=True)
+        v = v.cuda(non_blocking=True)
     return v
 
 def to_variable(theta, weights, images):

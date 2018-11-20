@@ -1,14 +1,13 @@
 import util
 import torch
+import matplotlib.pyplot as plt
 from torch.autograd import Variable
 from PIL import Image
 import glob
 import numpy as np
 import time
 
-
-
-visualize = False
+visualize = True
 _2D = False
 use_cuda = False and not visualize
 
@@ -23,7 +22,7 @@ IMAGE_REGEX = './data/test_frames/*.tif'
 ACTIVATIONS_CSV = './data/activations.csv'
 ACTIVATIONS = np.recfromcsv(ACTIVATIONS_CSV)
 ACTIVATIONS.sort(order="frame")
-N_TEST_FRAMES = 64#64 if visualize else 19996
+N_TEST_FRAMES = 64 if visualize else 19996
 def chunks(l, n):
     for i in range(0, len(l), n):
         yield l[i:i+n]
@@ -46,17 +45,12 @@ for chunk in image_chunks:
     if use_cuda:
         real_images = real_images.cuda()
 
-    print("load time: ", time.time() - s_time)
-    s_time = time.time()
-    (o_theta, o_w) = net(Variable(real_images, volatile=True))
-    print("net_time: ", time.time()-s_time)
-    s_time = time.time()
+    (o_theta, o_w) = net(Variable(real_images)) # former volatile = True
 
     o_theta, o_w = o_theta.data, o_w.data
-    theta_mul = torch.Tensor([1.0,1.0,0.2]).cuda() if use_cuda else torch.Tensor([1.0,1.0,0.2])
+    theta_mul = torch.Tensor([1.0, 1.0, 0.2]).cuda() if use_cuda else torch.Tensor([1.0, 1.0, 0.2])
     (points,weights) = util.fast_batch_cwa(o_theta, o_w, 0.001, 100, 0.3, theta_mul = theta_mul )
 
-    print("post_time: ", time.time()-s_time)
     all_points += points
     all_weights += weights
 
@@ -74,14 +68,17 @@ if not visualize:
     if _2D:
         np.savetxt("2d_loc.csv", rows, fmt = "%d, %d, %10.5f, %10.5f")
     else:
-        np.savetxt("3d_loc.csv", rows, fmt = "%d, %d, %10.5f, %10.5f, %10.5f")
+        np.savetxt("3d_loc_2.csv", rows, fmt = "%d, %d, %10.5f, %10.5f, %10.5f")
     torch.save(points, "points")
-else:
-    import pylab
-    pylab.ion()
-    for img_idx in range(64):
-        pylab.figure()
-        pylab.imshow(real_images[img_idx], extent=(0,6400,6400,0))
-        pylab.scatter(points[img_idx][:,0], points[img_idx][:,1], marker='x',color="red",s = (weights[img_idx])*100.0) #,s = o_w[b_idx,:].data.cpu()*100.0)
-        if len( FRAME_ACTIVATIONS[img_idx])> 0:
-            pylab.scatter(FRAME_ACTIVATIONS[img_idx][:,0], FRAME_ACTIVATIONS[img_idx][:,1], marker='o',color="white",facecolor="none") #,s = o_w[b_idx,:].data.cpu()*100.0)
+
+elif visualize:
+    fig = plt.figure()
+    for img_ix in range(64):
+        plt.imshow(real_images[img_ix], extent=(0, 6400, 6400, 0))
+        plt.scatter(points[img_ix][:,0], points[img_ix][:,1], color='red', marker='x')
+        if len(FRAME_ACTIVATIONS[img_ix]) > 0:
+            plt.scatter(FRAME_ACTIVATIONS[img_ix][:,0], FRAME_ACTIVATIONS[img_ix][:,1], \
+                        color='white', marker='o', facecolor='none')
+
+        plt.show()
+        plt.pause(1)
